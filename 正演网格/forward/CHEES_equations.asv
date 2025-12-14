@@ -104,8 +104,11 @@ Atmospheric_CH4_a_ppm =  (CH4_a /  pars.CH4_a_0 ) * 0.8 ;
 
 
 %%%% Thermohaline speed (Sv)
-circ_TH_Sv = 10 ;
-circ_coastal_Sv = 2 ;
+%circ_TH_Sv = 10 ;
+%%%% 修改后：让环流随温度异常(Delta_GAST)衰减
+% 假设 Delta_GAST 每增加 1度，环流减弱 10% (可以调整这个系数)
+% 注意：你需要确保前面已经算出了 Delta_GAST 或者直接用 (GAST - 288)
+
 
 %%%% Thermohaline speed (m3/yr)
 circ_TH_m3_yr = ( circ_TH_Sv * 1e6 ) * 3.15e7 ; 
@@ -295,7 +298,7 @@ CO2_pre_ppm = 1095; % 这是一个关键参数，必须和你 input_C 的初始�
 CH4_pre_ppm = 0.241; % 初始 CH4
 
 % 动态 ECS (见下文)
-ECS_now = 4.8; 
+ECS_now = 4.2; 
 
 % 计算相对于 Eocene 背景的 GAST 变化量
 % 注意：这里不再加 288，纯粹计算 Delta
