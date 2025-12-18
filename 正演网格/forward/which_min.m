@@ -266,7 +266,7 @@ ref.CO2  = make_ref_struct(ref_CO2);
 ref.SST  = make_ref_struct(ref_SST);
 
 %% ========== 2. 遍历工作目录 ==========
-rootDir = 'C:\Users\Windows11\Desktop\waiting04';
+rootDir = 'C:\Users\Windows11\Desktop\waiting06';
 dirInfo = dir(rootDir);
 
 % 初始化结果容器
