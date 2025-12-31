@@ -61,7 +61,7 @@ pars.input_C = [ ...
 % 长度必须与 pars.time 一致 (共 62 个点：2个 spin-up + 60个数据)
 pars.d13C_input = [-25, ones(1, 63) * mu];
 %pars.d13C_input = [-25 -22-13*rand(1) -22-13*rand(1) -22-13*rand(1)];%-23-4*rand(1) -23-4*rand(1) -23-4*rand(1)
-pars.k_ccdeg = 5e12 * (0.75+0.5*rand(1)) ; % 8e12 18e12 * (0.75+0.5*rand(1))32.8
+pars.k_ccdeg = 10e12 * (0.75+0.5*rand(1)) ; % 8e12 18e12 * (0.75+0.5*rand(1))32.8
 pars.k_phosw = 2.5e+11 * (0.75+0.5*rand(1)) ;  % 1.25 1.2088e+11 * (0.75+0.5*rand(1)) 2.5
 
 %pars.d13C_CO2 = -6;
@@ -175,37 +175,19 @@ pars.H2S_d_0  = 0;
 
 %%%%%% present day rates
 
-% pars.k_carbw = 16e12 *0.3; % 12e12
-% pars.k_sfw   = 0 ;       %%% Seafloor weathering
-% pars.k_mccb  = 28e12*0.3;  % pars.k_carbw + pars.k_ccdeg - pars.k_sfw  20e12
-% pars.k_silw  = pars.k_mccb - pars.k_carbw ;  % silicate weathering
-% basfrac = 0.3 ;
-% 1. 设定碳酸盐风化 (降低它 -> 降低碱度 -> 提 CO2)
-pars.k_carbw = 12e12 * 0.8; 
-
-% 2. 设定海底风化 (保持为 0 即可)
-pars.k_sfw = 0;
-
-% 3. 设定硅酸盐风化 (关键！直接指定它，而不是通过减法)
-% 原理：为了维持高 CO2，强制让硅酸盐风化处于极低水平 (比如 0.3 倍)
-% 注意：这里直接用 pars.k_ccdeg (前面定义的火山输入) 作为基准
-pars.k_silw = 8e12 * (pars.k_ccdeg / 32.8e12) * 0.65; 
-
-% 4. 最后计算总碳埋藏 (k_mccb)
-% 原理：在稳态下，总埋藏 (Output) = 总输入 (Input)
-% Input = 碳酸盐风化 + 火山/变质输入 - 海底风化消耗
-pars.k_mccb = pars.k_carbw + pars.k_ccdeg - pars.k_sfw;
-
-% 5. 玄武岩比例 (保持不变)
-basfrac = 0.3;
+pars.k_carbw = 16e12 *0.5; % 12e12
+pars.k_sfw   = 0 ;       %%% Seafloor weathering
+pars.k_mccb  = 28e12*0.5;  % pars.k_carbw + pars.k_ccdeg - pars.k_sfw  20e12
+pars.k_silw  = pars.k_mccb - pars.k_carbw ;  % silicate weathering
+basfrac = 0.3 ;
 
 pars.k_granw = pars.k_silw * (1 - basfrac) ;
 pars.k_basw = pars.k_silw * basfrac ;
 
 %%%%%% organic C cycle
-pars.k_ocdeg = 0.8*1.25e12 * 2  ;
-pars.k_locb = 0.8*2.5e12 ; % 4.5e12 ; 2.5e12 
-pars.k_mocb = 0.8*7e12  ;  % 4.5e12 ;
+pars.k_ocdeg = 1.25e12 * 2  ;
+pars.k_locb = 2.5e12 ; % 4.5e12 ; 2.5e12 
+pars.k_mocb = 7e12  ;  % 4.5e12 ;
 pars.k_oxidw = pars.k_mocb + pars.k_locb - pars.k_ocdeg ;
 
 %%%%%% present P, Fe, pyrite and sulfate weathering rate
