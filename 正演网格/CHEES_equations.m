@@ -284,64 +284,51 @@ t_geol = -56;
 % T_di = T_s ;
 
 % === 1. 设定始新世基准 (保持不变) ===
-GAST_pre_C = 28.6;
+GAST_pre_C = 28.6; 
 GAST_pre_K = GAST_pre_C + 273.15;
-Ts_pre_K   = 29.6 + 273.15;
-Td_pre_K   = 14.1 + 273.15;
+Ts_pre_K   = 29.6 + 273.15; 
+Td_pre_K   = 14.1 + 273.15; 
 
-% === 2. 背景浓度与 ECS (与你模型初值一致) ===
-CO2_pre_ppm = 1095;     % 你的背景 CO2 (= C0)，必须和 input_C 初始背景一致
-CH4_pre_ppm = 0.241;    % 你的背景 CH4 (= M0)，单位 ppm
-N2O_fix_ppb = 323;      % 固定 N2O (ppb)，按你指定
+% === 2. 计算模型内部的“温升驱动力” (Anomaly) ===
+% 我们不再关心 "288" 代表什么，我们只关心现在的 CO2 相对于"Pre-PETM CO2" 增加了多少
+% 假设 pre-PETM 的背景 CO2 是 1120 ppm (参考 PNAS 论文) 或者你模型设定的初始值
+CO2_pre_ppm = 1095; % 这是一个关键参数，必须和你 input_C 的初始背景一致！
+CH4_pre_ppm = 0.241; % 初始 CH4
 
-ECS_now = 4.8;          % 你从 CESM “CO2 翻倍升温”得到的 ECS（K per doubling around C0）
+% 动态 ECS (见下文)
+ECS_now = 4.8; 
 
-% === 3. CO2 部分：仍用你原来的“翻倍温度尺”写法（不改） ===
-Delta_GAST_CO2 = ECS_now * log(Atmospheric_CO2_ppm / CO2_pre_ppm) / log(2);
+% 计算相对于 Eocene 背景的 GAST 变化量
+% 注意：这里不再加 288，纯粹计算 Delta
+Delta_GAST_CO2 = ECS_now * log (Atmospheric_CO2_ppm / CO2_pre_ppm) / log(2) ;
 
-% === 4. CH4 部分：Etminan (2016) 辐射强迫 (W/m2)，再换算成温度 (K) ===
-% ---- 4.1 单位转换：ppm -> ppb（Etminan 公式要求 CH4 用 ppb）----
-M_ppb  = Atmospheric_CH4_a_ppm * 1000;   % 当前 CH4 (ppb)
-M0_ppb = CH4_pre_ppm * 1000;             % 基线 CH4 (ppb)
+% CH4 的变化量 (相对于初始 CH4)
+% Term_CH4_now = (4.361 * Atmospheric_CH4_a_ppm^(0.1467)) - 4.0461;
+% Term_CH4_pre = (4.361 * CH4_pre_ppm^(0.1467)) - 4.0461;
+% Delta_GAST_CH4 = Term_CH4_now - Term_CH4_pre;
 
-% ---- 4.2 Etminan(2016) CH4 forcing: ΔF = (a3*Mbar + b3*Nbar + 0.043) * (sqrt(M)-sqrt(M0)) ----
-a3 = -1.3e-6;
-b3 = -8.2e-6;
-c3 =  0.043;
+% === 2. CH4 部分 (物理公式算强迫) ===
+% 转换单位 ppm -> ppb
+M_ppb = Atmospheric_CH4_a_ppm * 1000; 
+M0_ppb = CH4_pre_ppm * 1000;
 
-Mbar = 0.5 * (M_ppb + M0_ppb);   % 平均浓度（Etminan 推荐写法）
-Nbar = N2O_fix_ppb;              % N=N0 固定时，Nbar = N0
+% 算出的是能量 (W/m2)
+F_CH4_Direct = 0.043 * (sqrt(M_ppb) - sqrt(M0_ppb)); 
+F_CH4_Total  = F_CH4_Direct * 1.3; % 加上间接效应
 
-F_CH4 = (a3 .* Mbar + b3 .* Nbar + c3) .* (sqrt(M_ppb) - sqrt(M0_ppb)); % W/m^2
+% === 关键一步：把能量翻译成温度 ===
+% 翻译逻辑：如果 3.7 W/m2 能升温 ECS 度，那么 1 W/m2 能升温 (ECS/3.7) 度
+Delta_GAST_CH4 = F_CH4_Total * (ECS_now / 3.7);
 
-% ---- 4.3 用同一套口径，在背景 C0 下计算 F_2xCO2(C0)，用于把 W/m2 换成 K ----
-% Etminan(2016) CO2 forcing:
-% ΔF_CO2 = [a1*(ΔC)^2 + |b1|*(ΔC) + c1*Nbar + 5.36] * ln(C/C0)
-a1 = -2.4e-7;
-b1 =  7.2e-4;
-c1 = -2.1e-4;
-d1 =  5.36;
-
-C0 = 840;
-C2 = 2 * 840;
-dC = (C2 - C0);
-
-F_2xCO2 = (a1 .* dC.^2 + abs(b1) .* dC + c1 .* N2O_fix_ppb + d1) .* log(C2 / C0); % W/m^2
-
-% ---- 4.4 强迫 -> 温度：用你定义的 ECS（CO2 翻倍升温）做比例尺 ----
-Delta_GAST_CH4 = ECS_now * (F_CH4 / F_2xCO2);  % K
-
-% （可选）如果你坚持把“间接效应”用倍率近似，可做一个开关：
-indirect_factor = 1.3;   % 设 1.0 表示不加；想做敏感性可试 1.1~1.4
-Delta_GAST_CH4 = Delta_GAST_CH4 * indirect_factor;
-
-% === 5. 合成总温升异常，并叠加到基准上 ===
+% 总 GAST 异常 (Delta)
 Delta_GAST = Delta_GAST_CO2 + Delta_GAST_CH4;
+
+% === 3. 叠加到基准上 ===
+% 现在的绝对 GAST
 GAST = GAST_pre_K + Delta_GAST;
 
-
 % 应用 DA 比例系数
-T_s = Ts_pre_K + Delta_GAST * 0.82; 
+T_s = Ts_pre_K + Delta_GAST * 0.89; 
 T_p = T_s;
 T_di = T_s;
 T_h = max( Td_pre_K + Delta_GAST * 1.43 , 271.5 );
@@ -468,7 +455,10 @@ FeIIIw = pars.k_FeIIIw*silw/(pars.k_basw+pars.k_granw);
 DEGASS = 1 ;
 Bforcing = 1 ;
 ccdeg = pars.k_ccdeg*DEGASS*Bforcing ;
-ocdeg = pars.k_ocdeg*DEGASS ;
+
+ocdeg_force = interp1( pars.time, pars.ocdeg_force , t);
+
+ocdeg = pars.k_ocdeg* ocdeg_force ; % DEGASS ; 
 
 %%%% generic CO2 input forcing to test model
 CO2_input = interp1(pars.time,pars.input_C,t) ; %%%%

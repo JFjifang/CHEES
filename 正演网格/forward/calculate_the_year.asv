@@ -1,0 +1,175 @@
+%% ============================================================
+% Recompute early δ13C so that (EVENT ONLY, no spin-up counted):
+%   - Late segment (after split) is pure volcanic CO2: δ = dCO2, CH4=0
+%   - Total CH4 emitted over the EVENT remains the same as implied by
+%     the original mixed δ_event_old (constant over the EVENT).
+%
+% You may specify the split either by:
+%   (A) splitMode = "index": give splitIdxGlobal (index into pars.time)
+%       meaning: late segment starts at this index
+%   (B) splitMode = "time":  give splitYear (in years), will interpolate
+%
+% OUTPUT:
+%   pars.d13C_input_new : updated δ13C time series
+%   d_event_early_new   : the δ13C to use for early segment (EVENT only)
+%% ============================================================
+
+% ---------------- USER SETTINGS ----------------
+dCO2 = -6;           % volcanic CO2 δ13C (‰)
+dCH4 = -35;          % methane δ13C (‰)
+d_event_old = -27.8; % your original EVENT mixed δ13C (‰), constant in old setup
+spinup_delta = -25;  % δ13C for spin-up (t < 0), kept unchanged
+
+% Choose ONE mode:
+splitMode = "index";         % "index" or "time"
+
+% --- Mode A: split by global index (recommended per your request) ---
+splitIdxGlobal = 58;         % <-- YOU set this. Late segment starts at this index in pars.time
+
+% --- Mode B: split by year (optional) ---
+splitYear = 5000;            % <-- YOU set this if splitMode="time"
+
+% ---------------- INPUTS ----------------
+t = pars.time(:);       % years
+F = pars.input_C(:);    % carbon input rate (same length)
+
+if numel(t) ~= numel(F)
+    error('pars.time and pars.input_C must have the same length.');
+end
+
+% ---------------- 1) Define EVENT window (exclude spin-up) ----------------
+eventMask = (t >= 0);   % spin-up excluded: t < 0 not counted
+if ~any(eventMask)
+    error('No event points found (t >= 0).');
+end
+
+idxEvent = find(eventMask);              % indices in the ORIGINAL arrays
+tE = t(idxEvent);
+FE = F(idxEvent);
+
+if numel(tE) < 2
+    error('Event window has too few points to integrate.');
+end
+
+% ---------------- 2) CH4 fraction implied by old mixed δ ----------------
+% δ_mix = f*δ_CH4 + (1-f)*δ_CO2  => f = (δ_mix - δ_CO2)/(δ_CH4 - δ_CO2)
+fCH4_total = (d_event_old - dCO2) / (dCH4 - dCO2);
+
+if fCH4_total < 0 || fCH4_total > 1
+    error('Old δ implies invalid CH4 fraction f=%.4f. Check δ values.', fCH4_total);
+end
+
+% ---------------- 3) Determine split within EVENT ----------------
+switch splitMode
+    case "index"
+        % splitIdxGlobal is an index into the ORIGINAL pars.time vector
+        if splitIdxGlobal < 1 || splitIdxGlobal > numel(t)
+            error('splitIdxGlobal out of bounds.');
+        end
+        if t(splitIdxGlobal) < 0
+            error('splitIdxGlobal points to spin-up (t<0). Choose an index with t>=0.');
+        end
+
+        % Find its position inside the event index list
+        k = find(idxEvent == splitIdxGlobal, 1, 'first');
+        if isempty(k)
+            error('splitIdxGlobal is not in idxEvent (unexpected).');
+        end
+        if k == 1
+            error('Split starts at the first EVENT point => early segment has zero length (impossible).');
+        end
+
+        % Early: event points 1..k-1; Late: k..end
+        t_early = tE(1:k-1);
+        F_early = FE(1:k-1);
+        t_late  = tE(k:end);
+        F_late  = FE(k:end);
+
+        E_total = trapz(tE, FE);
+        E_early = trapz(t_early, F_early);
+        E_late  = trapz(t_late,  F_late);
+
+        splitInfoText = sprintf('split by INDEX: late starts at global idx=%d (t=%.3g yr)', ...
+                                splitIdxGlobal, t(splitIdxGlobal));
+
+    case "time"
+        % splitYear is a time in years, within event range
+        if splitYear <= min(tE) || splitYear >= max(tE)
+            error('splitYear must be within event time range (%.3g, %.3g).', min(tE), max(tE));
+        end
+
+        % Interpolate F at splitYear and split into two segments
+        F_split = interp1(tE, FE, splitYear, 'linear');
+
+        t_early = [tE(tE < splitYear); splitYear];
+        F_early = [FE(tE < splitYear); F_split];
+
+        t_late  = [splitYear; tE(tE > splitYear)];
+        F_late  = [F_split;  FE(tE > splitYear)];
+
+        E_total = trapz(tE, FE);
+        E_early = trapz(t_early, F_early);
+        E_late  = trapz(t_late,  F_late);
+
+        splitInfoText = sprintf('split by TIME: splitYear=%.3g yr', splitYear);
+
+    otherwise
+        error('splitMode must be "index" or "time".');
+end
+
+% ---------------- 4) Enforce "late has CH4=0" while keeping total CH4 same ----------------
+% Old event CH4 total (in carbon units) = fCH4_total * E_total
+% New event CH4 total = fCH4_early * E_early + 0*E_late
+% => fCH4_early = fCH4_total * E_total / E_early
+fCH4_early = (fCH4_total * E_total) / E_early;
+
+if fCH4_early < 0 || fCH4_early > 1
+    error(['Impossible constraint: required early CH4 fraction f=%.4f outside [0,1].\n' ...
+           'Move split earlier (increase early duration) or change totals/assumptions.'], fCH4_early);
+end
+
+% Convert early CH4 fraction back to mixed δ13C
+d_event_early_new = fCH4_early * dCH4 + (1 - fCH4_early) * dCO2;
+
+% ---------------- 5) Build new δ13C series (spin-up untouched, event updated) ----------------
+d13C_new = nan(size(t));
+d13C_new(t < 0) = spinup_delta;
+
+% Default: keep old event value first, then overwrite by early/late segments
+d13C_new(eventMask) = d_event_old;
+
+switch splitMode
+    case "index"
+        % Early event: from first event index to splitIdxGlobal-1
+        d13C_new(idxEvent(1:k-1)) = d_event_early_new;
+        % Late event: splitIdxGlobal .. end of event
+        d13C_new(idxEvent(k:end)) = dCO2;
+
+    case "time"
+        % time-based split inside event
+        d13C_new(t >= 0 & t < splitYear) = d_event_early_new;
+        d13C_new(t >= splitYear) = dCO2;
+end
+
+% ---------------- 6) Report ----------------
+fprintf('\n===== UPDATED δ13C (EVENT-ONLY constraint) =====\n');
+fprintf('%s\n', splitInfoText);
+fprintf('Old event δ = %.3f ‰  => implied event CH4 fraction f_total = %.4f\n', d_event_old, fCH4_total);
+fprintf('Integrated EVENT carbon: E_total=%.3e, E_early=%.3e, E_late=%.3e\n', E_total, E_early, E_late);
+fprintf('Constraint: late CH4=0, keep total CH4 => required early CH4 fraction f_early = %.4f\n', fCH4_early);
+fprintf('=> New early event δ (apply to early segment) = %.3f ‰\n', d_event_early_new);
+fprintf('Late segment δ = %.3f ‰ (pure volcanic)\n', dCO2);
+
+% ---------------- 7) Save back to pars ----------------
+pars.d13C_input_new = d13C_new(:).';   % row vector, like your original
+
+% ---------------- 8) Optional plot ----------------
+figure('Color','w');
+plot(t, pars.d13C_input_new, 'k-', 'LineWidth', 1.5); grid on;
+xlabel('Time (yr)'); ylabel('\delta^{13}C input (‰)');
+title('Updated \delta^{13}C input: early adjusted, late volcanic-only (spin-up excluded from constraint)');
+if splitMode=="index"
+    xline(t(splitIdxGlobal), '--', 'split', 'LabelVerticalAlignment','bottom');
+else
+    xline(splitYear, '--', 'split', 'LabelVerticalAlignment','bottom');
+end

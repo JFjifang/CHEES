@@ -4,6 +4,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%   Define parameters   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 function CHEES_frontend(d13C_CO2_val, d13C_methane_val, mu_val, TotalC)
 clc;close all
 outdir = sprintf('%d_%d', round(d13C_CO2_val), round(d13C_methane_val));
@@ -15,7 +16,7 @@ d13C_p  = load('data/d13Cp_data.txt');  % [time, value]
 SST     = load('data/SST.txt');        
 pco2    = load('data/CO2.txt');          
 
-num_runs = 10 ;
+num_runs = 5 ;
 results = cell(num_runs, 9);
 
 for ii = 1: num_runs
@@ -46,6 +47,7 @@ pars.time = [ ...
     4.55e+03 4.65e+03 4.75e+03 4.85e+03 4.95e+03 5.05e+03 5.15e+03 5.25e+03 ...
     5.35e+03 5.45e+03 5.55e+03 5.65e+03 5.75e+03 5.85e+03 5.95e+03 6000];
 
+
 % 2. 定义碳排放输入 (spin-up 阶段为 0，后续为图片中的数据，最后乘以 scaleC)
 pars.input_C = [ ...
     0.00e+00 0.00e+00 2.52e13 2.72e+13 3.12e+13 3.42e+13 3.66e+13 3.81e+13 4.00e+13 ...
@@ -55,25 +57,27 @@ pars.input_C = [ ...
     6.78e+13 6.93e+13 7.03e+13 7.14e+13 7.29e+13 7.39e+13 7.48e+13 7.58e+13 ...
     7.82e+13 7.97e+13 8.11e+13 8.24e+13 8.37e+13 8.52e+13 8.68e+13 8.83e+13 ...
     8.98e+13 9.13e+13 9.31e+13 9.43e+13 9.65e+13 9.83e+13 1.00e+14 1.02e+14 ...
-    1.04e+14 1.06e+14 1.08e+14 1.10e+14 1.12e+14 1.13e+14 1.135e14 ] * scaleC;
+    1.04e+14 1.06e+14 1.08e+14 1.10e+14 1.12e+14 1.13e+14 1.135e14] * scaleC;
 
 % 3. 定义同位素输入 (spin-up 开始时为 -25，一旦进入 t=0 及事件发生期全部设为 mu)
 % 长度必须与 pars.time 一致 (共 62 个点：2个 spin-up + 60个数据)
 pars.d13C_input = [-25, ones(1, 63) * mu];
+
+pars.ocdeg_force= [1, 1, ones(1, 62) * 40];
+
 %pars.d13C_input = [-25 -22-13*rand(1) -22-13*rand(1) -22-13*rand(1)];%-23-4*rand(1) -23-4*rand(1) -23-4*rand(1)
-pars.ocdeg_force= [1, 1, ones(1, 62) * 1];
-pars.k_ccdeg = 35.9e12 * (0.75+0.5*rand(1)) ; % 8e12 18e12 * (0.75+0.5*rand(1))32.8
-pars.k_phosw = 2.1e+11 * (0.75+0.5*rand(1)) ;  % 1.25 1.2088e+11 * (0.75+0.5*rand(1)) 2.5
+pars.k_ccdeg =  25e12  * (0.75+0.5*rand(1)) ;   % 8e12 18e12 * (0.75+0.5*rand(1))32.8
+pars.k_phosw =  2.1e11 * (0.75+0.5*rand(1)) ;  % 1.25 1.2088e+11 * (0.75+0.5*rand(1)) 2.5
 
 %pars.d13C_CO2 = -6;
-%pars.d13C_methane = -37;%-60
+%pars.d13C_methane = -37; %-60
 pars.d13C_CO2     = d13C_CO2_val;      % 固定不变
 pars.d13C_methane = d13C_methane_val;     % 固定不变
-pars.methane_oxygen = 9e3 ;
+pars.methane_oxygen = 9e3 ; % 8.5e3 + 2.5e3 * rand(1);
 
 pars.k_CH4_diff = 0.7 + 0.2 * rand(1);          % 有多少甲烷从沉积物中扩散到海洋中，原本是0.8，0.15
-pars.k_CH4_from_ocean = 1;   % 有多少甲烷是来自海洋的0.4+ 0.3 * rand(1)
-pars.k_CH4_oxiwatercolum = 0.01; % 这些甲烷气泡在水柱中有多少被氧化，0.1 + 0.3 * rand(1)
+pars.k_CH4_from_ocean = 0.8  + 0.1 * rand(1);   % 有多少甲烷是来自海洋的0.4+ 0.3 * rand(1)
+pars.k_CH4_oxiwatercolum = 0.8 + 0.1 * rand(1); % 这些甲烷气泡在水柱中有多少被氧化，0.1 + 0.3 * rand(1)
 
 %%%%%% water reservoir sizes in m3 (m=margins, s=surface, h= hi-lat, d=deep)
 pars.vol_p  = 2.6e15 ;  %%%% approx volume of all shelves and slope to depth 100m, area pecentage 5%
@@ -87,7 +91,7 @@ pars.vol_ocean = pars.vol_p + pars.vol_di + pars.vol_s + pars.vol_h + pars.vol_d
 % pars.mixcoeff_dip = 30.28;
 % pars.mixcoeff_ds  = 46.33;
 % pars.mixcoeff_dh  = 54.9;
-mixing_scale = 1.0; % 降低混合效率
+mixing_scale = 1; % 降低混合效率
 pars.mixcoeff_dip = 30.28 * mixing_scale;
 pars.mixcoeff_ds  = 46.33 * mixing_scale;
 pars.mixcoeff_dh  = 54.9  * mixing_scale;
@@ -106,7 +110,7 @@ pars.ALK_h_0  = 2.71e16 ;
 pars.ALK_d_0  = 3e18 ;
 
 %%%%%% C isotope composition
-pars.d13c_atm_0    = -7 ;
+pars.d13c_atm_0    = -7;
 pars.d13c_DIC_p_0  = 2.3 ;
 pars.d13c_DIC_di_0 = 2.3 ;
 pars.d13c_DIC_s_0  = 2.3 ;
@@ -162,7 +166,7 @@ pars.SO4_p_0  = 3.12e16;
 pars.SO4_di_0 = 5.4e15*12;
 pars.SO4_s_0  = 2.75e16*12;
 pars.SO4_h_0  = 1.22e16 *12;
-pars.SO4_d_0  = 1.3e18 *12; %1.35
+pars.SO4_d_0  = 1.35e18 *12;
 
 %%%%%% initial amount of FeII in moles
 pars.FeII_p_0  = 0;
@@ -182,12 +186,13 @@ pars.H2S_d_0  = 0;
 
 pars.k_carbw = 12e12 ; % 12e12
 pars.k_sfw   = 0 ;       %%% Seafloor weathering
-pars.k_mccb  = 20e12;  % pars.k_carbw + pars.k_ccdeg - pars.k_sfw  20e12
+pars.k_mccb  = 20e12 ; % pars.k_carbw + pars.k_ccdeg - pars.k_sfw  ; % 20e12
 pars.k_silw  = pars.k_mccb - pars.k_carbw ;  % silicate weathering
 basfrac = 0.3 ;
 
+% S_factor = 1.0;
 % % 1. 设定碳酸盐风化 (降低它 -> 降低碱度 -> 提 CO2)
-% pars.k_carbw = 12e12 ; 
+% pars.k_carbw = 12e12 * S_factor; 
 % 
 % % 2. 设定海底风化 (保持为 0 即可)
 % pars.k_sfw = 0;
@@ -195,7 +200,7 @@ basfrac = 0.3 ;
 % % 3. 设定硅酸盐风化 (关键！直接指定它，而不是通过减法)
 % % 原理：为了维持高 CO2，强制让硅酸盐风化处于极低水平 (比如 0.3 倍)
 % % 注意：这里直接用 pars.k_ccdeg (前面定义的火山输入) 作为基准
-% pars.k_silw = 8e12; 
+% pars.k_silw = 8e12 * S_factor; 
 % 
 % % 4. 最后计算总碳埋藏 (k_mccb)
 % % 原理：在稳态下，总埋藏 (Output) = 总输入 (Input)
@@ -209,9 +214,10 @@ pars.k_granw = pars.k_silw * (1 - basfrac) ;
 pars.k_basw = pars.k_silw * basfrac ;
 
 %%%%%% organic C cycle
-pars.k_ocdeg = 1.25e12   ;
-pars.k_locb = 2.5e12 *0.6  ; % 4.5e12 ; 2.5e12 
-pars.k_mocb = 7e12 *0.6 ;  % 4.5e12 ;
+pars.k_ocdeg = 1.25e12  ;
+
+pars.k_locb = 2.5e12  * 0.6 ; % 4.5e12 ; 2.5e12 
+pars.k_mocb = 7e12  * 0.6 ;  % 4.5e12 ;
 pars.k_oxidw = pars.k_mocb + pars.k_locb - pars.k_ocdeg ;
 
 %%%%%% present P, Fe, pyrite and sulfate weathering rate
@@ -510,7 +516,6 @@ for i = 1:num_runs
     total_mass = M_p + M_s + M_h;
     d13c_DIC(i, :) = (M_p .* D_p + M_s .* D_s + M_h .* D_h) ./ total_mass;
     % === 修改结束 ===
-    d13c_DIC_deep(i, :) = interpolated_results{i}.d13c_DIC_d;
     T_p(i, :) = interpolated_results{i}.T_p;
     Atmospheric_CO2_ppm(i, :) = interpolated_results{i}.Atmospheric_CO2_ppm;
     Atmospheric_CH4_a_ppm(i, :) = interpolated_results{i}.Atmospheric_CH4_a_ppm;
@@ -536,10 +541,6 @@ d13c_DIC_mean = nanmean(d13c_DIC, 1);
 d13c_DIC_5 = prctile(d13c_DIC, 5, 1); 
 d13c_DIC_95 = prctile(d13c_DIC, 95, 1); 
 
-d13c_DIC_d_mean = nanmean(d13c_DIC_deep, 1); 
-d13c_DIC_d_5 = prctile(d13c_DIC_deep, 5, 1); 
-d13c_DIC_d_95 = prctile(d13c_DIC_deep, 95, 1); 
-
 T_p_mean = nanmean(T_p, 1); 
 T_p_5 = prctile(T_p, 5, 1); 
 T_p_95 = prctile(T_p, 95, 1); 
@@ -554,54 +555,6 @@ Atmospheric_CH4_95 = prctile(Atmospheric_CH4_a_ppm, 95, 1);
 
 plot_time = base_time * 1e6 ;
 
-%% === 新增代码：计算 ΔSST 和 ΔpCO2 并导出分布 ===
-
-% 1. 寻找时间索引
-% 找到 t >= 0 的第一个点 (事件开始)
-idx_start = find(plot_time >= 0, 1, 'first');
-% 找到 t >= 6000 的第一个点 (或者取最接近的末尾点)
-idx_end   = find(plot_time >= 6000, 1, 'first');
-
-% 容错处理：如果模拟没正好跑到 6000，取时间序列的最后一点
-if isempty(idx_end)
-    idx_end = length(plot_time);
-end
-
-fprintf('Calculating Delta from t=%.2f yr to t=%.2f yr\n', plot_time(idx_start), plot_time(idx_end));
-
-% 2. 初始化变量
-delta_SST_list = zeros(num_runs, 1);
-delta_pCO2_list = zeros(num_runs, 1);
-
-% 3. 循环计算每个 Run 的差值
-for i = 1:num_runs
-    % 提取 SST (T_p) 起止值，单位 Kelvin (差值等同于摄氏度)
-    sst_start = T_p(i, idx_start);
-    sst_end   = T_p(i, idx_end);
-    
-    % 提取 pCO2 起止值，单位 ppm
-    co2_start = Atmospheric_CO2_ppm(i, idx_start);
-    co2_end   = Atmospheric_CO2_ppm(i, idx_end);
-    
-    % 计算 Delta
-    delta_SST_list(i) = sst_end - sst_start;
-    delta_pCO2_list(i) = co2_end - co2_start;
-end
-
-% 4. 计算表观敏感度 (Apparent Sensitivity)
-% 公式：S = Delta_T / log2( pCO2_end / pCO2_start )
-% 这代表了"CO2每翻倍对应的温升" (degrees per doubling)
-sensitivity_list = delta_SST_list ./ log2( Atmospheric_CO2_ppm(:, idx_end) ./ Atmospheric_CO2_ppm(:, idx_start) );
-
-% 5. 创建表格并导出 CSV (增加了 Sensitivity 列)
-Delta_Table = table((1:num_runs)', delta_SST_list, delta_pCO2_list, sensitivity_list, ...
-    'VariableNames', {'Run_ID', 'Delta_SST_degC', 'Delta_pCO2_ppm', 'Apparent_Sensitivity_degC_per_doubling'});
-
-filename_delta = sprintf('CHEES_Delta_Dist_%d_%d.csv', round(mu), round(TotalC));
-fullpath_delta = fullfile(outdir, filename_delta);
-
-writetable(Delta_Table, fullpath_delta);
-fprintf('  Saved Delta Distribution & Sensitivity to: %s\n', fullpath_delta);
 %%
 
 color_line    = rand(1,3);
@@ -669,19 +622,6 @@ xlim([0 6000])
 xlabel('Time (yr)', 'FontSize', 12)
 ylabel(['δ^{13}C input (', char(8240), ')'], 'FontSize', 12)
 title('e', 'FontSize', 14, 'FontWeight', 'bold')
-
-% ax5 = nexttile;
-% hold on;
-% box on;
-% a1 = plot(plot_time, d13c_DIC_d_mean,'-','LineWidth',2,'Color',color_line);
-% fill([(plot_time)', fliplr((plot_time)')],[(d13c_DIC_d_5), fliplr((d13c_DIC_d_95))],color_line,'LineStyle','none','facealpha',0.2);hold on;
-% fill([(d13C_p(:,1))', fliplr((d13C_p(:,1))')],[(d13C_p(:,2))', fliplr((d13C_p(:,4))')],color_scatter,'LineStyle','none','facealpha',0.2);hold on;
-% a2 = plot(d13C_p(:,1), d13C_p(:,3),'-','LineWidth',2,'Color',color_scatter);
-% legend([a1,a2],'CHEES','同化')
-% xlim([0 6000])
-% xlabel('Time (yr)', 'FontSize', 12)
-% ylabel(['δ^{13}C of DIC (', char(8240), ')'], 'FontSize', 12)
-% title('a', 'FontSize', 14, 'FontWeight', 'bold')
 
 ax6 = nexttile;
 hold on;
@@ -799,6 +739,9 @@ fullpath = fullfile(outdir, filename);
 writetable(TS_out, fullpath);
 fprintf('  Saved %s\n', fullpath);
 end
+
+
+
 %% ---- Local functions (must be at end of script) ----
 function x = truncnorm(mu, sigma, lo, hi)
 x = mu + sigma*randn();
